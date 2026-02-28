@@ -40,6 +40,7 @@ library(broom)
 library(car)
 library(factoextra)
 library(ggpmisc)
+library(knitr)
 ```
 
 
@@ -76,12 +77,14 @@ weather %>%
 **Which is better:** Having 4 clusters is better. Despite only 16 points being in cluster 2, separating those points allows for more similarity among points within their cluster than among all clusters. This is shown also within the WSS method of the fviz_nbclust() function - where 3 clusters can still be considered within the initial "drop" of WSS values, but after 4 the incremental improvement is small (the line flattens out). This suggests 4 is better. Similarly, the Silhouette Width in fviz_nbclust() with method = "s" shows that 4 has a width closer to +1, which suggests a well-clustered set of observations, where clusters are farthest from other clusters. 3 is second-best on that graph, being slightly closer to 0 in silhouette width. 
 
 ```{r}
-fviz_cluster(mod_km4,
-             data = weather_norm)
+knitr::include_graphics("../Output/mod_km4.png")
 fviz_cluster(mod_km_3clusters,
              data = weather_norm)
 ```
 
+```{r}
+
+```
 
 # Submitting your work  
 Once you have developed all the code and answers, make sure to Render this quarto file.  
