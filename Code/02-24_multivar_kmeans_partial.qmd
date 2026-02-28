@@ -180,6 +180,9 @@ and extract cluster mean and pairwise comparison to understand what variables ha
 ```{r kmeans PCA plot}
 fviz_cluster(mod_km4,
              data = weather_norm)
+ggsave("../output/mod_km4.png",
+       width = 10,
+       height = 6) 
 ```
   
 Notice how, behind the scenes, the fviz_cluster function ran a PCA and is showing us a plot with PCs 1 and 2 on the axis (same result as we obtained on the PCA analysis).   
