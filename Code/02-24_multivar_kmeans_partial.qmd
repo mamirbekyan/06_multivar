@@ -26,7 +26,7 @@ library(ggpmisc)
 ```
 
 ```{r}
-weather 
+weather <- read_csv("../Data/weather_monthsum.csv")
 
 weather
 ```
@@ -78,9 +78,11 @@ k-means does not normalize our data for us like PCA did, so we will need to do t
 
 ```{r}
 # normalizing the data
-weather_norm  
+weather_norm<- weather_n %>%
+  mutate(across(everything(), ~scale(.x))) #Scale is like a function, .x is a placeholder for all of the column names
 
 weather_norm
+summary(weather_norm) #mean is all 0, the clustering wont be impacted because we are normalizing everything to be independent of their original values.
 ```
 
 Also, we need to define the number of clusters we want.  
@@ -88,16 +90,26 @@ Any thoughts?
 Let's try 2.  
 
 ```{r kmeans model }
-mod_km 
+mod_km <- kmeans(weather_norm,
+                 centers = 6, #picking how many centres there are
+                 nstart = 10) #making sure it runs kmeans 10 times so that the starter one does not "artificially" give you sub-optimal clusters. It will give you the single best outcome.
 
 mod_km
+
+# (between_SS / total_SS =  58.5 %) = 58.5% of the variability in the data is explained by the clusters
 ```
 
 Since the choice of k can be subjective, we will need to find an objective way to select the value of k that most properly represents our dataset.  
 
 ```{r choosing k - total error}
 # Total error x k
+fviz_nbclust(weather_norm,
+            method = "wss",
+            k.max = 10,
+            FUNcluster = kmeans
+            )
 
+#elbow method: the goal is to chose a number of k where we see an elbow in the below. Here, anything between 3 and 5 is good. The minimum number of clusters that explain the most information. If we did only 1 - we dont learn much from the data. If we ask for 698 clusters, each would have 1 data point. The goal is to find something between where the observations within a cluster is similar while the difference between clusters is large enough that clusters are distinct.
 ```
 
 
@@ -107,7 +119,7 @@ fviz_nbclust(weather_norm,
              method = "s",
              k.max = 10,
              FUNcluster = kmeans) 
-
+#different method: Silhouette width. We want average width to be the highest possible, which means that your variation within a cluster is low. The algorithm gives you a recommendation (4)
 ```
 
 total error: k=3-4  
@@ -116,17 +128,25 @@ silhouette: k=4
 Let's go with 4 clusters.  
 
 ```{r mod_km4 }
-mod_km4 
+mod_km4 <- kmeans(weather_norm, 
+                  centers = 4,
+                  nstart = 10)
 
 mod_km4
+
+#(between_SS / total_SS =  48.2 %) - its only going to be 100% if we have 698 groups, which is not the goal
 ```
 
 How many observations per cluster?
 ```{r}
+weather %>%
+  mutate(cluster = mod_km4$cluster) %>%     #mod_km4$cluster is the vector of the cluster
+  group_by(cluster) %>%
+  tally() #gives how many observations there are within each one of them
 
 ```
 
-Now how can we visually inspect the resutls of k-means?  
+Now how can we visually inspect the results of k-means?  
 We can either  
 
 - add the cluster column to original dataset and explore the distribution of each variable against cluster id, OR  
@@ -137,7 +157,7 @@ We can either
 weather %>%
   mutate(cluster = mod_km4$cluster,
          cluster = factor(cluster)) %>%
-  pivot_longer(!c(year,site,cluster)) %>%
+  pivot_longer(!c(year,site,cluster)) %>% #pivot longer everything except year, site, and cluster
   ggplot(aes(x = cluster, 
              y = value, 
              color = cluster))+
@@ -158,7 +178,8 @@ We could actually run ANOVA models for each original variable of the form
 and extract cluster mean and pairwise comparison to understand what variables had significant differences among clusters.  
 
 ```{r kmeans PCA plot}
-
+fviz_cluster(mod_km4,
+             data = weather_norm)
 ```
   
 Notice how, behind the scenes, the fviz_cluster function ran a PCA and is showing us a plot with PCs 1 and 2 on the axis (same result as we obtained on the PCA analysis).   

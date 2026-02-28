@@ -206,8 +206,8 @@ weather %>%
                   )) %>%
   arrange(desc(r2)) %>%
   ungroup() %>%
-  slice(1:6) %>% 
-  unnest(data) %>%
+  slice(1:6) %>% # top 6 values
+  unnest(data) %>% #take out the tibbles, open into the main dataframe
   ggplot(aes(x = value, 
              y = strength_gtex))+
   geom_point(shape = 21, 
@@ -243,8 +243,8 @@ weather %>%
   ggplot(aes(x = mean_dayl.s_Apr, 
              y = sum_prcp.mm_Oct)) +
   geom_point() +
-  geom_smooth(method="lm") +
-  stat_correlation()
+  geom_smooth(method="lm") #+
+  #stat_correlation() #this just adds the r^2 to the plot, but its causing issues
 ```
 
 Two correlated variables:
@@ -260,8 +260,12 @@ weather %>%
 Now let's fit some models with one or two uncorrelated and correlated variables explaining fiberstrength and see what happens.  
 
 ```{r strength ~ mean_dayl.s_Apr}
-lm_dayl.apr 
-
+lm_dayl.apr <- lm(strength_gtex ~ mean_dayl.s_Apr, #strength explained by mean day length in April, simple linear model. Then below data = weather where weather is our dataframe
+                  data = weather) %>%
+  tidy()  %>%  #givrs as a dataframe thats easier to change
+  filter(term != "(Intercept)") %>%
+  mutate(mod = "lm_dayl.apr") #model name
+  
 lm_dayl.apr
 
 ```
@@ -278,11 +282,11 @@ lm_prp.oct
 
 ```{r strength ~ mean_dayl.s_Apr + sum_prcp.mm_Oct}
 lm_dayl.prcp <- lm(strength_gtex ~ mean_dayl.s_Apr + 
-                   sum_prcp.mm_Oct,
+                   sum_prcp.mm_Oct, #strength explained by April day length AND Oct precipitation
    data = weather) %>%
   tidy() %>%
   filter(term != "(Intercept)") %>%
-  mutate(mod = "lm_2var.uncor")
+  mutate(mod = "lm_2var.uncor") #gave both entries the same name at the end
 
 lm_dayl.prcp
 
@@ -303,21 +307,34 @@ lm_daylapr.daylmay
 ```{r Checking multicollinearity}
 lm_dayl.apr %>%
   bind_rows(lm_prp.oct, 
-            lm_dayl.prcp,
+            lm_dayl.prcp, #THESE ARE THE OBJECT NAMES OF THE MODELS FROM ABOVE
             lm_daylapr.daylmay) %>%
   mutate(mod=factor(mod,
-                    levels=c("lm_dayl.apr",
+                    levels=c("lm_dayl.apr", #in the column mod, you are ranking these levels/rows manually here. Rearranging here so that when you plot it it follows this order
                              "lm_prp.oct",
                              "lm_2var.uncor",
                              "lm_2var.cor"))) %>%
-  filter(term != "mean_dayl.s_May") %>%
-  ggplot(aes(x=mod))
+  filter(term != "mean_dayl.s_May") %>% #removing the term mean day length in may, which is coming from the last model we ran. Taking it out bc its not in our other models. We just want to look at April for now. 
+  ggplot(aes(x=mod)) +
+  geom_pointrange(aes(y = estimate, #the value of the y estimates of the above model tibbles
+                      ymin = estimate - std.error, #these also come from the tibbles above. This can be the confidence intervals, it can be anything. Provide a POINT, and then a RANGE AROUND. 
+                      ymax = estimate + std.error
+                      )) +
+  facet_wrap(~term, scales = "free_y") + #just allowing the y scale to be free, not the x
+  scale_x_discrete(guide = guide_axis(n.dodge = 2)) #discrete because our x axis labels come from what are discrete variables, and then dodge/shift every other so there is less crowding on the axis
 
+
+
+#the two that are at the same points suggest that mean day length being in a model are one that was highly correlated and one that we knew was uncorrelated. Adding an uncorrelated variable did not impact Mean day length's ability to predict strength
+#my contrast, when mean day length of april is with another highly correlated model, the slope is different and less correlated.
+
+
+#When Sum Precip October was alone, it did not differ from how it was with an uncorrelated model.
 ```
 
 What has happened with **mean_dayl.s_April** and **sum_prcp.mm_Oct** estimates and standard error when modeled i) alone, or with another uncorrelated variable vs. ii) with another correlated variable?
 
-One way to check the degree of multicollinearity between two predictos is with the variance inflation factor (VIF).  
+One way to check the degree of multicollinearity between two predictos is with the *variance inflation factor (VIF)*.  
 
 VIF values range from 1 to positive infinite.  
 General rule of thumb:  
@@ -329,16 +346,22 @@ General rule of thumb:
 Let's check the variance inflation factor (VIF) of both uncorrelated and correlated models
 ```{r vif uncorrelated}
 # Uncorrelated
+
+vif(lm(strength_gtex ~ mean_dayl.s_Apr + 
+                   sum_prcp.mm_Oct, #strength explained by April day length AND Oct precipitation
+   data = weather))
 ```
 
 
 ```{r vif correlated}
-# Correlated
+# Correlated. This is the one that we know we have multicolinearity. The result is a higher value, showing that this mdoel has problems. Adding in mean day length and april and may together significantly changed the slope, value, etc. 
 lm(strength_gtex ~ mean_dayl.s_Apr + 
                   mean_dayl.s_May,
    data = weather) %>%
   vif()
 
+
+#you can either put the model into vif() or write the model then pipe into vif() at the end
 ```
 
 ## Dealing with multicollinearity  
@@ -346,15 +369,16 @@ So what now?
 How can we deal with correlated variables in a multivariate approach?  
 Options:  
 
-- Dimensionality reduction  
+- *Dimensionality reduction*
+    - Reducing the number of x variables in the model. Maybe we go into the literature and select two that are known to be looked into. Give only the variables that we know are impactful, or do math with principle component analysis.
     - By hand (selecting predictors based on previous knowledge, literature, etc.)  
     - By math  
   
-- Algorithm that handles multicollinearity  
-    - Variable selection    
-    - Multivariate by ensembling multiple bivariates   
+- *Algorithm that handles multicollinearity behind the scenes*
+    - Variable selection, the model itself selects variables for you instead of using all 72 variables in the model 
+    - Multivariate by ensembling multiple bivariates. Training machine learning models to look at each thing one by one/individually
 
-Many multivariate approaches deal with some sort of similarity/dissimilarity measure among predictors.  
+**Many multivariate approaches deal with some sort of similarity/dissimilarity measure among predictors.**
 
 In those cases, predictors with vastly different scales (e.g. mean_tmin.c_Jan from -10 to 10 C vs mean_dayl.s_Jul from 48000 to 51000) need to be normalized so measurement scale does not affect variable importance.    
 
@@ -364,8 +388,8 @@ Some analysis do the normalization for you (like PCA), and others don't (like k-
 
 Since both PCA and k-means only take numerical variables, let's select them now.  
 ```{r selecting only numerical vars}
-weather_n 
-
+weather_n <- weather %>% dplyr::select(-year, -site, - strength_gtex)
+#pull the weather object. We want to take out the y variables and only put in the weather variables
 weather_n
 ```
 
@@ -399,14 +423,18 @@ knitr::include_graphics("https://miro.medium.com/v2/resize:fit:1200/1*V4H3Cu8qGr
 Let's run PCA for our weather data.  
 
 ```{r pca model}
-mod_pca 
-
+mod_pca <- prcomp(weather_n, scale. = T)
+summary(mod_pca)
 ```
 
 ## Choosing number of PCs  
+
+**why do we use PCA? To reduce the number of dimensions and variables**
 Based on scree plot (total variance):  
 ```{r pca checking number of components}
-# Scree plot
+# Scree plot. Visualize individually how much variability is explained by each one of the components. Goal is not to select all 72, but just an adequate amount to do PCA. This is the best when we have some hghly correlated variables. If none of the principle components are explaining your data, then we would see all the bars around the same. These are the individual proportions.
+fviz_eig(mod_pca,
+         addlabels = T)
 
 ```
     
@@ -415,8 +443,16 @@ This indicates that original variables were correlated (as we expected).
 
 If wanted to use enough PCs to explain 70% of total variance, how many would we need?  
 ```{r PCs to explain 70pct variance}
+mod_pca %>%
+  get_eig() %>%
+  mutate(pc = 1:72) %>%
+  ggplot(aes(x= pc,
+             y=cumulative.variance.percent)) +
+  geom_bar(stat="identity") + 
+  geom_hline(yintercept = 70) #this will show us how many PC's we need to explain 70% of the variance in our data. its 4 (3 is just below)
 
 
+#this one will give the cumulative proportion
 ```
     
 We would need 4 PCs.  
@@ -428,23 +464,27 @@ Let's inspect PC1 through the loadings (weights) of each variable towards it.
 What are the weights that each variable received in this PC?  
 ```{r PC1 weights}
 mod_pca$rotation %>%
-  as.data.frame() %>%
+  as.data.frame() %>% #this will make it the actual names as a dataframe. All PC1s are a combination of all weather variables, but with ONE of the variables having the greatest WEIGHT. 
   rownames_to_column(var = "var") %>%
   ggplot(aes(x = reorder(var,desc(PC1)), 
              y = PC1))+
   geom_bar(stat = "identity", 
-           aes(fill = PC1), 
+           aes(fill = PC1),  #THIS IS SO WE ONLY SEE PC1 BELOW
            show.legend = F)+
   scale_fill_gradient(low = "red", high = "blue")+
   theme(axis.text.x = element_text(angle = 45, 
                                    hjust = 1))
 
+
+#The winter months at the beginning are the most positive, and the ones with the most negtive correlation are day lengths in the summer months. Now we can see the weight of them to interpret what the PC means. We could explain this PC as explanation by season. 
 ```
 
 Which variables contributed most to PC1, regardless of direction?  
 
 ```{r variables contributing to PC1}
-
+fviz_contrib(mod_pca,
+             choice = "var",
+             axes = 1)
 ```
   
 Let's check the eigenvectors for both PCs 1 and 2 variables:  
@@ -453,9 +493,9 @@ Let's check the eigenvectors for both PCs 1 and 2 variables:
 fviz_pca_var(mod_pca, 
              col.var = "contrib", # Color by contributions to the PC
              gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-             repel = TRUE     # Avoid text overlapping
-             )
-
+             repel = TRUE,     # Avoid text overlapping
+             select.var = list(contrib = 5)) #only the top 5
+#Each arrow here is the eigenvector for a different variable for PC1 and 2. Those that are in opposite directions you may say they are opposititely correlated. The LONGER the vector is, the more important they are. 
 ```
   
 The longer is the eigenvector for a given variable, the more important it is towards that PC.  
@@ -463,7 +503,10 @@ The longer is the eigenvector for a given variable, the more important it is tow
 Let's plot PC1 vs PC2 scores, look for any groupings.  
 
 ```{r PC1 vs PC2}
+fviz_pca_ind(mod_pca,
+             label = F)  
 
+#THE POINTS ARE PCA 1 AND 2 FOR EACH SITE YEAR    
 ```
   
 Appears that some groups exist.  
@@ -480,32 +523,42 @@ Let's add the first 4 PCs to our original dataset and run a regression versus gr
 
 ```{r pca scores}
 # Extract first 4 PCs scores
-pca_scores 
+pca_scores <- mod_pca$x %>%
+  as.data.frame() %>%
+  dplyr::select(PC1:PC4) #inly 4 instead of the original 72
 
 pca_scores
 ```
 
 ```{r pca regression}
 # Adding PCs 1-4 scores to original data set
-weather_postpca 
+weather_postpca <- weather %>%
+  bind_cols(pca_scores)
 
 # Regression of yield ~ PCs
 
-lm_pca 
+lm_pca <- lm(strength_gtex ~ PC1 +PC2 + PC3 + PC4,
+          data = weather_postpca)
 
 # Summary  
-summary(lm_pca)
+summary(lm_pca)   #SHOWS THAT PC2 and 3 are the most significant
 ```
 
 
 ```{r pca regression}
 # Checking VIF
-
+vif(lm_pca)  #1 means there is no multicollinearity between that specific predictor variable and any of th eothr predictor variables in that regression model (the lm). These would be what you would expect - all 72 are orthogonal, independent, non-corralated so we would expect 1 for all of them. 
 ```
 
 ```{r pca regression plots}
 # Plotting strength vs PC1
-
+ggplot(weather_postpca,
+       aes(x = PC1,
+           y = strength_gtex)
+       ) +
+  geom_point() +
+  geom_smooth(method = "lm")
+  #this one has a pretty flat relationship
 ```
 
 
@@ -515,7 +568,7 @@ ggplot(weather_postpca,
        aes(x = PC2, y = strength_gtex))+
   geom_point()+
   geom_smooth(method = "lm")
-
+# positive relationship.
 ```
 
 ```{r pca regression plots}
@@ -525,6 +578,7 @@ ggplot(weather_postpca,
   geom_point()+
   geom_smooth(method = "lm")
 
+#Negative relationship
 ```
 
 Only PCs 2 and 3 explained strength (look at which variables were most important to each PC for interpretation).  
