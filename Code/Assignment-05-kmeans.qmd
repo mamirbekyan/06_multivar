@@ -33,7 +33,9 @@ You will first need to watch (and code along with) the following k-means video:
 ## 1. What number of k did you select? Why?  
 **ANSWER:** I selecte 3 as the next-best to 4, to see how they compare. This is based on 3 being within the appropriate range of the "elbow" method, and the secon-highest value in the silhouette method for optimal number of clusters. 
 With 3 clusters, between_SS / total_SS =  41.8 %. This means that 41.8% of the variability in the data is explained by these clusters. 
-```{r}
+
+**LIBRARIES**
+```{r, message=FALSE, warning=FALSE}
 library(tidyverse)
 library(ggcorrplot)
 library(broom)
@@ -43,7 +45,7 @@ library(ggpmisc)
 library(knitr)
 ```
 
-
+**SETTING UP AND MAKING NEW CLUSTERS**
 ```{r}
 weather <- read_csv("../Data/weather_monthsum.csv")
 
@@ -76,6 +78,7 @@ weather %>%
 **How do they visually compare: ** While the red (first) cluster stays the same, the other clusters shift. Specifically, the bottom and small left cluster are combined when the number of clusters is reduced from 4 to 3, and the cluster on the right side of the graph (green when kmeans = 3) has a wider base. This is because the center of the blue cluster (kmeans = 3) is shifted to the left, allowing the cluster on the right to take over some of the points from what was originally in the purple (kmeans = 4) arrangement. 
 **Which is better:** Having 4 clusters is better. Despite only 16 points being in cluster 2, separating those points allows for more similarity among points within their cluster than among all clusters. This is shown also within the WSS method of the fviz_nbclust() function - where 3 clusters can still be considered within the initial "drop" of WSS values, but after 4 the incremental improvement is small (the line flattens out). This suggests 4 is better. Similarly, the Silhouette Width in fviz_nbclust() with method = "s" shows that 4 has a width closer to +1, which suggests a well-clustered set of observations, where clusters are farthest from other clusters. 3 is second-best on that graph, being slightly closer to 0 in silhouette width. 
 
+**IMPORTING IMAGE OF MOD_KM4 AND CREATING NEW ONE**
 ```{r}
 knitr::include_graphics("../Output/mod_km4.png")
 fviz_cluster(mod_km_3clusters,
